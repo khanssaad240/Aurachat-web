@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, set } from "firebase/database";
+import { getDatabase, ref, onValue, set, push } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDu6kGB97h9LcyzqkJCS6dX9jvesZXcg",
@@ -17,24 +17,6 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 const INITIAL_CONVERSATIONS = [
-  {
-    id: '12890545',
-    visitorName: 'Visitor #12890545',
-    visitorEmail: 'visitor_1289@web.io',
-    location: 'Hayatabad, Peshawar, Pakistan',
-    lat: 33.9935,
-    lng: 71.4274,
-    browser: 'Chrome 130 • Windows',
-    status: 'active',
-    assignedTeam: 'General Support',
-    assignedAgent: 'Haris Yousafzai',
-    ticketBadge: null,
-    unread: 1,
-    messages: [
-      { id: 'm1', sender: 'visitor', senderName: 'Visitor #12890545', text: 'Hello sir, I need help with my deposit.', timestamp: '05:58 PM', type: 'text' },
-      { id: 'm2', sender: 'agent', senderName: 'Haris Yousafzai', text: 'Hello! How can we assist you today?', timestamp: '05:59 PM', type: 'text' }
-    ]
-  },
   {
     id: '773726619',
     visitorName: 'Mohsin',
@@ -66,12 +48,6 @@ const INITIAL_TEAM = [
   { id: 't2', name: 'Mr. Mohsin', email: 'mohsin4567801@gmail.com', role: 'Agent', status: 'Accepting chats', activeChats: 0, limit: 8 }
 ];
 
-const INITIAL_CANNED = [
-  { code: '#1', title: 'Check Details', text: 'Sir, we are checking your details. Please wait a moment while we update you.' },
-  { code: '#2', title: 'Payment Screenshot', text: 'Kindly share the screenshot of your payment receipt so we can verify.' },
-  { code: '#3', title: 'Deposit Verified', text: 'Your deposit ticket has been verified and credited to your account!' }
-];
-
 export default function App() {
   const isCustomerLink = new URLSearchParams(window.location.search).get('chat') === 'true';
 
@@ -85,19 +61,15 @@ export default function App() {
   const [registeredUsers, setRegisteredUsers] = useState(INITIAL_TEAM);
   const [activeNavTab, setActiveNavTab] = useState('chats');
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
-  const [cannedList, setCannedList] = useState(INITIAL_CANNED);
   const [ticketsList, setTicketsList] = useState([]);
 
   const [selectedConvId, setSelectedConvId] = useState('773726619');
   const [agentInput, setAgentInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
   const [isAcceptingChats, setIsAcceptingChats] = useState(true);
-  const [showCannedMenu, setShowCannedMenu] = useState(false);
 
   // Floating Widget State
   const [isOpenChatWidget, setIsOpenChatWidget] = useState(isCustomerLink);
-  const [customerActiveTab, setCustomerActiveTab] = useState('messages');
   const [customerInput, setCustomerInput] = useState('');
   const [aiStep, setAiStep] = useState('menu');
   const [assignedHumanAgent, setAssignedHumanAgent] = useState(null);
@@ -174,7 +146,8 @@ export default function App() {
   };
 
   const safeConversations = Array.isArray(conversations) ? conversations : INITIAL_CONVERSATIONS;
-  const selectedConversation = safeConversations.find((c) => c.id === selectedConvId) || safeConversations[1] || INITIAL_CONVERSATIONS[1];
+  const currentConv = safeConversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[0];
+  const selectedConversation = safeConversations.find((c) => c.id === selectedConvId) || currentConv;
 
   const transferToLeastBusyAgent = (convId, customerText = null) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -183,7 +156,7 @@ export default function App() {
       ? [...availableAgents].sort((a, b) => (a.activeChats || 0) - (b.activeChats || 0))[0]
       : registeredUsers[0] || { name: 'Haris Yousafzai', role: 'Admin' };
 
-    const targetConv = safeConversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
+    const targetConv = safeConversations.find(c => c.id === convId) || currentConv;
     const existingMsgs = targetConv.messages || [];
 
     const newMessages = [...existingMsgs];
@@ -195,7 +168,7 @@ export default function App() {
       id: `ai_transfer_${Date.now() + 1}`,
       sender: 'ai',
       senderName: 'Sofia (AI Assistant)',
-      text: `Transferring you to an available agent who is free or has fewer active chats... Connected with ${chosenAgent.name} (${chosenAgent.role}).`,
+      text: `Transferring you to live support... Connected with ${chosenAgent.name} (${chosenAgent.role}).`,
       timestamp: timeNow,
       type: 'system'
     });
@@ -221,7 +194,7 @@ export default function App() {
   const handleAiOptionClick = (option) => {
     const convId = '773726619';
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const targetConv = safeConversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
+    const targetConv = safeConversations.find(c => c.id === convId) || currentConv;
     const existingMsgs = targetConv.messages || [];
 
     if (option === 'deposit') {
@@ -230,7 +203,7 @@ export default function App() {
         id: `ai_${Date.now() + 1}`,
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: 'I can help you create a priority Deposit Ticket. Please reply with your User ID, Deposit Amount, and Transaction Reference ID.',
+        text: 'Please reply with your User ID, Deposit Amount, and Transaction Reference ID to create a priority ticket.',
         timestamp: timeNow,
         type: 'text'
       };
@@ -244,7 +217,7 @@ export default function App() {
         id: `ai_${Date.now() + 1}`,
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: 'Please provide your User ID and Withdrawal Amount. I will immediately forward your request to our support agent.',
+        text: 'Please provide your User ID and Withdrawal Amount. I will forward this to our support agent.',
         timestamp: timeNow,
         type: 'text'
       };
@@ -266,7 +239,7 @@ export default function App() {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setCustomerInput('');
 
-    const targetConv = safeConversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
+    const targetConv = safeConversations.find(c => c.id === convId) || currentConv;
     const existingMsgs = targetConv.messages || [];
 
     const wantsAgent = /agent|human|support|representative|person|talk to/i.test(text);
@@ -288,7 +261,7 @@ export default function App() {
         id: `ai_${Date.now() + 1}`,
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: `✅ Deposit Ticket #${ticketId} created successfully! Connecting you to an agent now...`,
+        text: `✅ Deposit Ticket #${ticketId} created! Connecting you to an agent...`,
         timestamp: timeNow,
         type: 'text'
       };
@@ -313,7 +286,7 @@ export default function App() {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newMsg = { id: `agent_${Date.now()}`, sender: 'agent', senderName: currentAgent.name, text: textToSend, timestamp: timeNow, type: msgType };
 
-    const targetConv = safeConversations.find(c => c.id === targetId) || INITIAL_CONVERSATIONS[1];
+    const targetConv = safeConversations.find(c => c.id === targetId) || currentConv;
     const existingMsgs = targetConv.messages || [];
 
     const updatedConversations = safeConversations.map(conv =>
@@ -323,7 +296,6 @@ export default function App() {
     setConversations(updatedConversations);
     set(ref(db, 'conversations'), updatedConversations);
     setAgentInput('');
-    setShowCannedMenu(false);
   };
 
   const handleFileUploadFromPC = (e) => {
@@ -353,7 +325,6 @@ export default function App() {
 
   // Direct Customer Link view (?chat=true)
   if (isCustomerLink) {
-    const currentConv = safeConversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[1];
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-2 sm:p-4">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[90vh] max-w-md w-full">
@@ -371,34 +342,32 @@ export default function App() {
           </div>
 
           <div className="flex-1 overflow-y-auto bg-slate-950/50 p-4 space-y-3">
-            <div className="space-y-3">
-              <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 text-xs space-y-1">
-                <div className="font-bold text-amber-400">Notice for all Users :</div>
-                <p className="text-slate-300">For deposit, withdrawal or account issues, choose an option below or talk directly to our live support team.</p>
-              </div>
-
-              {currentConv.messages?.map((m, idx) => (
-                <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[82%] p-3 rounded-2xl text-xs ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : m.type === 'system' ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-200' : 'bg-slate-800 text-slate-200'}`}>
-                    <div className="font-bold text-[9px] opacity-75 mb-0.5">{m.sender === 'visitor' ? 'You' : (m.senderName || 'Sofia (AI)')}</div>
-                    <div>{m.text}</div>
-                    <div className="text-[9px] opacity-60 text-right mt-1">{m.timestamp}</div>
-                  </div>
-                </div>
-              ))}
-
-              {aiStep !== 'agent_connected' && (
-                <div className="pt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition cursor-pointer">💳 Deposit Issue (Ticket)</button>
-                  <button type="button" onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition cursor-pointer">💸 Withdrawal Issue</button>
-                  <button type="button" onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1.5 rounded-full font-semibold cursor-pointer">👨‍💻 Talk to Live Agent</button>
-                </div>
-              )}
+            <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 text-xs space-y-1">
+              <div className="font-bold text-amber-400">Notice for all Users :</div>
+              <p className="text-slate-300">For deposit, withdrawal or account issues, choose an option below or talk directly to our live support team.</p>
             </div>
+
+            {currentConv.messages?.map((m, idx) => (
+              <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[82%] p-3 rounded-2xl text-xs ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : m.type === 'system' ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-200' : 'bg-slate-800 text-slate-200'}`}>
+                  <div className="font-bold text-[9px] opacity-75 mb-0.5">{m.sender === 'visitor' ? 'You' : (m.senderName || 'Sofia (AI)')}</div>
+                  <div>{m.text}</div>
+                  <div className="text-[9px] opacity-60 text-right mt-1">{m.timestamp}</div>
+                </div>
+              </div>
+            ))}
+
+            {aiStep !== 'agent_connected' && (
+              <div className="pt-2 flex flex-wrap gap-2">
+                <button type="button" onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition cursor-pointer">💳 Deposit Issue (Ticket)</button>
+                <button type="button" onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition cursor-pointer">💸 Withdrawal Issue</button>
+                <button type="button" onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1.5 rounded-full font-semibold cursor-pointer">👨‍💻 Talk to Live Agent</button>
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleSendCustomerMessage} className="p-3 bg-slate-900 border-t border-slate-800 flex items-center space-x-2">
-            <input type="text" value={customerInput} onChange={(e) => setCustomerInput(e.target.value)} placeholder="Type your message in English..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none" />
+            <input type="text" value={customerInput} onChange={(e) => setCustomerInput(e.target.value)} placeholder="Type your message..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none" />
             <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">Send</button>
           </form>
         </div>
@@ -408,7 +377,6 @@ export default function App() {
 
   // Login Screen with Floating 24/7 Chat Widget
   if (!isLoggedIn) {
-    const currentConv = safeConversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[1];
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-md shadow-2xl">
