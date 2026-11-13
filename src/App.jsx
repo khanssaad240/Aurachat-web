@@ -108,21 +108,32 @@ export default function App() {
     const chatsRef = ref(db, 'conversations');
     const unsubscribeChats = onValue(chatsRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) setConversations(data);
-      else set(chatsRef, INITIAL_CONVERSATIONS);
+      if (data) {
+        const arr = Array.isArray(data) ? data : Object.values(data);
+        setConversations(arr);
+      } else {
+        set(chatsRef, INITIAL_CONVERSATIONS);
+      }
     });
 
     const teamRef = ref(db, 'teamUsers');
     const unsubscribeTeam = onValue(teamRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) setRegisteredUsers(data);
-      else set(teamRef, INITIAL_TEAM);
+      if (data) {
+        const arr = Array.isArray(data) ? data : Object.values(data);
+        setRegisteredUsers(arr);
+      } else {
+        set(teamRef, INITIAL_TEAM);
+      }
     });
 
     const ticketsRef = ref(db, 'tickets');
     const unsubscribeTickets = onValue(ticketsRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) setTicketsList(data);
+      if (data) {
+        const arr = Array.isArray(data) ? data : Object.values(data);
+        setTicketsList(arr);
+      }
     });
 
     return () => {
@@ -162,16 +173,17 @@ export default function App() {
     setIsLoggedIn(true);
   };
 
-  const selectedConversation = conversations.find((c) => c.id === selectedConvId) || conversations[0];
+  const safeConversations = Array.isArray(conversations) ? conversations : INITIAL_CONVERSATIONS;
+  const selectedConversation = safeConversations.find((c) => c.id === selectedConvId) || safeConversations[1] || INITIAL_CONVERSATIONS[1];
 
   const transferToLeastBusyAgent = (convId, customerText = null) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const availableAgents = registeredUsers.filter(u => u.status === 'Accepting chats');
     const chosenAgent = availableAgents.length > 0
       ? [...availableAgents].sort((a, b) => (a.activeChats || 0) - (b.activeChats || 0))[0]
-      : registeredUsers[0];
+      : registeredUsers[0] || { name: 'Haris Yousafzai', role: 'Admin' };
 
-    const targetConv = conversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
+    const targetConv = safeConversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
     const existingMsgs = targetConv.messages || [];
 
     const newMessages = [...existingMsgs];
@@ -188,7 +200,7 @@ export default function App() {
       type: 'system'
     });
 
-    const updated = conversations.map(conv => {
+    const updated = safeConversations.map(conv => {
       if (conv.id === convId) {
         return {
           ...conv,
@@ -209,7 +221,7 @@ export default function App() {
   const handleAiOptionClick = (option) => {
     const convId = '773726619';
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const targetConv = conversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
+    const targetConv = safeConversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
     const existingMsgs = targetConv.messages || [];
 
     if (option === 'deposit') {
@@ -222,7 +234,7 @@ export default function App() {
         timestamp: timeNow,
         type: 'text'
       };
-      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg, aiReply] } : c);
+      const updated = safeConversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg, aiReply] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
       setAiStep('deposit_details');
@@ -236,7 +248,7 @@ export default function App() {
         timestamp: timeNow,
         type: 'text'
       };
-      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg, aiReply] } : c);
+      const updated = safeConversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg, aiReply] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
       setAiStep('withdrawal_details');
@@ -254,7 +266,7 @@ export default function App() {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setCustomerInput('');
 
-    const targetConv = conversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
+    const targetConv = safeConversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
     const existingMsgs = targetConv.messages || [];
 
     const wantsAgent = /agent|human|support|representative|person|talk to/i.test(text);
@@ -276,19 +288,19 @@ export default function App() {
         id: `ai_${Date.now() + 1}`,
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: `✅ Deposit Ticket #${ticketId} created successfully! Details logged. Connecting you to an agent now...`,
+        text: `✅ Deposit Ticket #${ticketId} created successfully! Connecting you to an agent now...`,
         timestamp: timeNow,
         type: 'text'
       };
 
-      const updated = conversations.map(c => c.id === convId ? { ...c, ticketBadge: `🎫 ${ticketId} (Deposit)`, messages: [...existingMsgs, userMsg, aiConfirm] } : c);
+      const updated = safeConversations.map(c => c.id === convId ? { ...c, ticketBadge: `🎫 ${ticketId} (Deposit)`, messages: [...existingMsgs, userMsg, aiConfirm] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
       transferToLeastBusyAgent(convId);
     } else if (aiStep === 'withdrawal_details') {
       transferToLeastBusyAgent(convId, text);
     } else {
-      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg] } : c);
+      const updated = safeConversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
     }
@@ -301,10 +313,10 @@ export default function App() {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newMsg = { id: `agent_${Date.now()}`, sender: 'agent', senderName: currentAgent.name, text: textToSend, timestamp: timeNow, type: msgType };
 
-    const targetConv = conversations.find(c => c.id === targetId) || INITIAL_CONVERSATIONS[1];
+    const targetConv = safeConversations.find(c => c.id === targetId) || INITIAL_CONVERSATIONS[1];
     const existingMsgs = targetConv.messages || [];
 
-    const updatedConversations = conversations.map(conv =>
+    const updatedConversations = safeConversations.map(conv =>
       conv.id === targetId ? { ...conv, assignedAgent: currentAgent.name, messages: [...existingMsgs, newMsg], unread: 0 } : conv
     );
 
@@ -332,7 +344,7 @@ export default function App() {
       timestamp: 'Just now',
       type: 'text'
     }];
-    const updated = conversations.map(c => c.id === convId ? { ...c, assignedAgent: 'Sofia (AI)', ticketBadge: null, messages: resetMsg } : c);
+    const updated = safeConversations.map(c => c.id === convId ? { ...c, assignedAgent: 'Sofia (AI)', ticketBadge: null, messages: resetMsg } : c);
     setConversations(updated);
     set(ref(db, 'conversations'), updated);
     setAiStep('menu');
@@ -341,7 +353,7 @@ export default function App() {
 
   // Direct Customer Link view (?chat=true)
   if (isCustomerLink) {
-    const currentConv = conversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[1];
+    const currentConv = safeConversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[1];
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-2 sm:p-4">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[90vh] max-w-md w-full">
@@ -355,7 +367,7 @@ export default function App() {
                 <div className="text-[10px] text-emerald-400">● 24/7 Live Support Active</div>
               </div>
             </div>
-            <button onClick={resetCustomerAiChat} className="text-[11px] bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-xl text-amber-300">↻ Reset</button>
+            <button type="button" onClick={resetCustomerAiChat} className="text-[11px] bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-xl text-amber-300 cursor-pointer">↻ Reset</button>
           </div>
 
           <div className="flex-1 overflow-y-auto bg-slate-950/50 p-4 space-y-3">
@@ -387,7 +399,7 @@ export default function App() {
 
           <form onSubmit={handleSendCustomerMessage} className="p-3 bg-slate-900 border-t border-slate-800 flex items-center space-x-2">
             <input type="text" value={customerInput} onChange={(e) => setCustomerInput(e.target.value)} placeholder="Type your message in English..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none" />
-            <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold">Send</button>
+            <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">Send</button>
           </form>
         </div>
       </div>
@@ -396,7 +408,7 @@ export default function App() {
 
   // Login Screen with Floating 24/7 Chat Widget
   if (!isLoggedIn) {
-    const currentConv = conversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[1];
+    const currentConv = safeConversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[1];
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-md shadow-2xl">
@@ -426,7 +438,7 @@ export default function App() {
               <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
               <input type="password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white" />
             </div>
-            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 rounded-xl shadow-lg transition text-sm">
+            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 rounded-xl shadow-lg transition text-sm cursor-pointer">
               {authMode === 'signin' ? 'Sign In to Console' : 'Create Account & Join'}
             </button>
           </form>
@@ -471,7 +483,7 @@ export default function App() {
 
               <form onSubmit={handleSendCustomerMessage} className="p-2 border-t border-slate-800 bg-slate-950 flex space-x-1">
                 <input type="text" value={customerInput} onChange={(e) => setCustomerInput(e.target.value)} placeholder="Type message..." className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white" />
-                <button type="submit" className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">Send</button>
+                <button type="submit" className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">Send</button>
               </form>
             </div>
           )}
@@ -498,13 +510,13 @@ export default function App() {
             <span>{isAcceptingChats ? 'Accepting Chats' : 'Not Accepting'}</span>
           </button>
           <span className="text-slate-400 border-l border-slate-800 pl-3">👑 {currentAgent.name}</span>
-          <button type="button" onClick={() => setIsLoggedIn(false)} className="text-rose-400 hover:underline pl-2">Logout</button>
+          <button type="button" onClick={() => setIsLoggedIn(false)} className="text-rose-400 hover:underline pl-2 cursor-pointer">Logout</button>
         </div>
 
         <div className="flex items-center space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-          <button type="button" onClick={() => setActiveNavTab('chats')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'chats' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>💬 Agent Chats</button>
-          <button type="button" onClick={() => setActiveNavTab('tickets')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'tickets' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>🎫 AI Tickets ({ticketsList.length})</button>
-          <button type="button" onClick={() => setActiveNavTab('team')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'team' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>👥 Team</button>
+          <button type="button" onClick={() => setActiveNavTab('chats')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'chats' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white cursor-pointer'}`}>💬 Agent Chats</button>
+          <button type="button" onClick={() => setActiveNavTab('tickets')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'tickets' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white cursor-pointer'}`}>🎫 AI Tickets ({ticketsList.length})</button>
+          <button type="button" onClick={() => setActiveNavTab('team')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'team' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white cursor-pointer'}`}>👥 Team</button>
         </div>
       </nav>
 
@@ -512,11 +524,11 @@ export default function App() {
         <div className="max-w-[1700px] mx-auto p-4 grid grid-cols-1 md:grid-cols-12 gap-4 h-[88vh] flex-1 w-full">
           <div className="md:col-span-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col">
             <div className="flex justify-between items-center mb-3">
-              <span className="font-bold text-sm text-slate-200">Inbox ({conversations.length})</span>
+              <span className="font-bold text-sm text-slate-200">Inbox ({safeConversations.length})</span>
             </div>
             <input type="text" placeholder="🔍 Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white mb-3" />
             <div className="space-y-2 overflow-y-auto flex-1">
-              {conversations.map(c => (
+              {safeConversations.map(c => (
                 <div key={c.id} onClick={() => setSelectedConvId(c.id)} className={`p-3 rounded-xl cursor-pointer border transition ${selectedConvId === c.id ? 'bg-purple-600/20 border-purple-500/50' : 'bg-slate-950 border-slate-800'}`}>
                   <div className="flex justify-between items-center mb-1">
                     <span className="font-bold text-xs text-white">{c.visitorName}</span>
@@ -567,9 +579,9 @@ export default function App() {
 
             <form onSubmit={(e) => { e.preventDefault(); handleSendAgentMessage(selectedConvId); }} className="p-3 border-t border-slate-800 bg-slate-950 flex items-center space-x-2">
               <input type="file" ref={fileInputRef} onChange={handleFileUploadFromPC} className="hidden" accept="image/*,video/*" />
-              <button type="button" onClick={() => fileInputRef.current.click()} className="text-slate-400 hover:text-white p-2.5 bg-slate-900 rounded-xl border border-slate-800">📁</button>
+              <button type="button" onClick={() => fileInputRef.current.click()} className="text-slate-400 hover:text-white p-2.5 bg-slate-900 rounded-xl border border-slate-800 cursor-pointer">📁</button>
               <input type="text" value={agentInput} onChange={(e) => setAgentInput(e.target.value)} placeholder="Reply as Live Agent..." className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none" />
-              <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">Send ➔</button>
+              <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold cursor-pointer">Send ➔</button>
             </form>
           </div>
 
