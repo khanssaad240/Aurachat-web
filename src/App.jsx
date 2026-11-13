@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, set, push } from "firebase/database";
+import { getDatabase, ref, onValue, set } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDu6kGB97h9LcyzqkJCS6dX9jvesZXcg",
@@ -145,11 +145,11 @@ export default function App() {
     setIsLoggedIn(true);
   };
 
-  const safeConversations = Array.isArray(conversations) ? conversations : INITIAL_CONVERSATIONS;
+  const safeConversations = Array.isArray(conversations) && conversations.length > 0 ? conversations : INITIAL_CONVERSATIONS;
   const currentConv = safeConversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[0];
   const selectedConversation = safeConversations.find((c) => c.id === selectedConvId) || currentConv;
 
-  const transferToLeastBusyAgent = (convId, customerText = null) => {
+  const triggerLiveAgentTransfer = (convId, customUserText = null) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const availableAgents = registeredUsers.filter(u => u.status === 'Accepting chats');
     const chosenAgent = availableAgents.length > 0
@@ -160,15 +160,15 @@ export default function App() {
     const existingMsgs = targetConv.messages || [];
 
     const newMessages = [...existingMsgs];
-    if (customerText) {
-      newMessages.push({ id: `cust_${Date.now()}`, sender: 'visitor', senderName: 'Mohsin', text: customerText, timestamp: timeNow, type: 'text' });
+    if (customUserText) {
+      newMessages.push({ id: `cust_${Date.now()}`, sender: 'visitor', senderName: 'Mohsin', text: customUserText, timestamp: timeNow, type: 'text' });
     }
 
     newMessages.push({
       id: `ai_transfer_${Date.now() + 1}`,
       sender: 'ai',
       senderName: 'Sofia (AI Assistant)',
-      text: `Transferring you to live support... Connected with ${chosenAgent.name} (${chosenAgent.role}).`,
+      text: `Connected with live support agent: ${chosenAgent.name} (${chosenAgent.role}). They will reply shortly!`,
       timestamp: timeNow,
       type: 'system'
     });
@@ -226,7 +226,7 @@ export default function App() {
       set(ref(db, 'conversations'), updated);
       setAiStep('withdrawal_details');
     } else if (option === 'agent') {
-      transferToLeastBusyAgent(convId, 'I want to talk to live customer support.');
+      triggerLiveAgentTransfer(convId, 'I want to talk to live customer support.');
     }
   };
 
@@ -244,7 +244,7 @@ export default function App() {
 
     const wantsAgent = /agent|human|support|representative|person|talk to/i.test(text);
     if (wantsAgent && aiStep !== 'agent_connected') {
-      transferToLeastBusyAgent(convId, text);
+      triggerLiveAgentTransfer(convId, text);
       return;
     }
 
@@ -269,9 +269,9 @@ export default function App() {
       const updated = safeConversations.map(c => c.id === convId ? { ...c, ticketBadge: `🎫 ${ticketId} (Deposit)`, messages: [...existingMsgs, userMsg, aiConfirm] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
-      transferToLeastBusyAgent(convId);
+      triggerLiveAgentTransfer(convId);
     } else if (aiStep === 'withdrawal_details') {
-      transferToLeastBusyAgent(convId, text);
+      triggerLiveAgentTransfer(convId, text);
     } else {
       const updated = safeConversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg] } : c);
       setConversations(updated);
