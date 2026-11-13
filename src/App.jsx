@@ -474,11 +474,13 @@ export default function App() {
                   </div>
                 ))}
 
-                <div className="pt-2 flex flex-wrap gap-1">
-                  <button type="button" onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full cursor-pointer">💳 Deposit Issue</button>
-                  <button type="button" onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full cursor-pointer">💸 Withdrawal</button>
-                  <button type="button" onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/30 text-emerald-300 text-[10px] px-2.5 py-1 rounded-full font-semibold cursor-pointer">👨‍💻 Live Agent</button>
-                </div>
+                {aiStep !== 'agent_connected' && (
+                  <div className="pt-2 flex flex-wrap gap-1">
+                    <button type="button" onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full cursor-pointer">💳 Deposit Issue</button>
+                    <button type="button" onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full cursor-pointer">💸 Withdrawal</button>
+                    <button type="button" onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/30 text-emerald-300 text-[10px] px-2.5 py-1 rounded-full font-semibold cursor-pointer">👨‍💻 Live Agent</button>
+                  </div>
+                )}
               </div>
 
               <form onSubmit={handleSendCustomerMessage} className="p-2 border-t border-slate-800 bg-slate-950 flex space-x-1">
