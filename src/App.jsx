@@ -75,7 +75,6 @@ const INITIAL_CANNED = [
 ];
 
 export default function App() {
-  // Detect if opened via direct customer link (?chat=true)
   const isCustomerLink = new URLSearchParams(window.location.search).get('chat') === 'true';
 
   const [authMode, setAuthMode] = useState('signin');
@@ -86,7 +85,7 @@ export default function App() {
   const [currentAgent, setCurrentAgent] = useState({ name: 'Haris Yousafzai', role: 'Admin', email: 'harrytech0000@gmail.com' });
 
   const [registeredUsers, setRegisteredUsers] = useState(INITIAL_TEAM);
-  const [activeNavTab, setActiveNavTab] = useState(isCustomerLink ? 'customer-view' : 'chats');
+  const [activeNavTab, setActiveNavTab] = useState('chats');
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
   const [cannedList, setCannedList] = useState(INITIAL_CANNED);
   const [ticketsList, setTicketsList] = useState([]);
@@ -98,14 +97,14 @@ export default function App() {
   const [isAcceptingChats, setIsAcceptingChats] = useState(true);
   const [showCannedMenu, setShowCannedMenu] = useState(false);
 
-  // Customer Widget & Sofia AI Flow State
+  // Floating 24/7 Customer Widget Toggle State
+  const [isOpenChatWidget, setIsOpenChatWidget] = useState(isCustomerLink);
   const [customerActiveTab, setCustomerActiveTab] = useState('messages');
   const [customerInput, setCustomerInput] = useState('');
-  const [aiStep, setAiStep] = useState('menu'); // 'menu' | 'deposit_details' | 'withdrawal_details' | 'agent_connected'
+  const [aiStep, setAiStep] = useState('menu');
   const [assignedHumanAgent, setAssignedHumanAgent] = useState(null);
 
   useEffect(() => {
-    if (!isLoggedIn) return;
     const chatsRef = ref(db, 'conversations');
     const unsubscribeChats = onValue(chatsRef, (snapshot) => {
       const data = snapshot.val();
@@ -131,7 +130,7 @@ export default function App() {
       unsubscribeTeam();
       unsubscribeTickets();
     };
-  }, [isLoggedIn]);
+  }, []);
 
   const handleSignIn = (e) => {
     e.preventDefault();
@@ -165,32 +164,23 @@ export default function App() {
 
   const selectedConversation = conversations.find((c) => c.id === selectedConvId) || conversations[0];
 
-  // Smart Load-Balanced Transfer to Free / Least Busy Agent
   const transferToLeastBusyAgent = (convId, customerText = null) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const availableAgents = registeredUsers.filter(u => u.status === 'Accepting chats');
-    
     const chosenAgent = availableAgents.length > 0
       ? [...availableAgents].sort((a, b) => (a.activeChats || 0) - (b.activeChats || 0))[0]
       : registeredUsers[0];
 
     const newMessages = [];
     if (customerText) {
-      newMessages.push({
-        id: `cust_${Date.now()}`,
-        sender: 'visitor',
-        senderName: 'Mohsin',
-        text: customerText,
-        timestamp: timeNow,
-        type: 'text'
-      });
+      newMessages.push({ id: `cust_${Date.now()}`, sender: 'visitor', senderName: 'Mohsin', text: customerText, timestamp: timeNow, type: 'text' });
     }
 
     newMessages.push({
       id: `ai_transfer_${Date.now() + 1}`,
       sender: 'ai',
       senderName: 'Sofia (AI Assistant)',
-      text: `Transferring you to an available agent who is free or currently has fewer active chats... You are now connected with ${chosenAgent.name} (${chosenAgent.role}).`,
+      text: `Transferring you to an available agent who is free or has fewer active chats... Connected with ${chosenAgent.name} (${chosenAgent.role}).`,
       timestamp: timeNow,
       type: 'system'
     });
@@ -213,7 +203,6 @@ export default function App() {
     setAiStep('agent_connected');
   };
 
-  // Handle Sofia AI Quick Buttons
   const handleAiOptionClick = (option) => {
     const convId = '773726619';
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -224,7 +213,7 @@ export default function App() {
         id: `ai_${Date.now() + 1}`,
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: 'I can help you create a priority Deposit Ticket right away. Please reply with your User ID, Deposit Amount, and Transaction Reference ID.',
+        text: 'I can help you create a priority Deposit Ticket. Please reply with your User ID, Deposit Amount, and Transaction Reference ID.',
         timestamp: timeNow,
         type: 'text'
       };
@@ -238,7 +227,7 @@ export default function App() {
         id: `ai_${Date.now() + 1}`,
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: 'Please provide your User ID and Withdrawal Amount. I will immediately forward your withdrawal request to our live support agent.',
+        text: 'Please provide your User ID and Withdrawal Amount. I will immediately forward your request to our support agent.',
         timestamp: timeNow,
         type: 'text'
       };
@@ -251,7 +240,6 @@ export default function App() {
     }
   };
 
-  // Customer Message Submit Handler
   const handleSendCustomerMessage = (e) => {
     e.preventDefault();
     if (!customerInput.trim()) return;
@@ -271,14 +259,7 @@ export default function App() {
 
     if (aiStep === 'deposit_details') {
       const ticketId = `DEP-${Math.floor(100000 + Math.random() * 900000)}`;
-      const newTicket = {
-        id: ticketId,
-        type: 'Deposit',
-        customer: 'Mohsin',
-        details: text,
-        status: 'Open',
-        createdAt: timeNow
-      };
+      const newTicket = { id: ticketId, type: 'Deposit', customer: 'Mohsin', details: text, status: 'Open', createdAt: timeNow };
       const updatedTickets = [newTicket, ...ticketsList];
       setTicketsList(updatedTickets);
       set(ref(db, 'tickets'), updatedTickets);
@@ -287,104 +268,33 @@ export default function App() {
         id: `ai_${Date.now() + 1}`,
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: `✅ Deposit Ticket #${ticketId} has been created and shared with our finance team! Details logged: "${text}". Would you also like me to connect you to a live agent?`,
+        text: `✅ Deposit Ticket #${ticketId} created successfully! Details: "${text}". Would you like me to connect you to a live agent?`,
         timestamp: timeNow,
         type: 'text'
       };
 
-      const updated = conversations.map(c =>
-        c.id === convId
-          ? {
-              ...c,
-              ticketBadge: `🎫 ${ticketId} (Deposit)`,
-              unread: (c.unread || 0) + 1,
-              messages: [...(c.messages || []), userMsg, aiConfirm]
-            }
-          : c
-      );
+      const updated = conversations.map(c => c.id === convId ? { ...c, ticketBadge: `🎫 ${ticketId} (Deposit)`, messages: [...(c.messages || []), userMsg, aiConfirm] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
       setAiStep('menu');
     } else if (aiStep === 'withdrawal_details') {
-      const availableAgents = registeredUsers.filter(u => u.status === 'Accepting chats');
-      const chosenAgent = availableAgents.length > 0
-        ? [...availableAgents].sort((a, b) => (a.activeChats || 0) - (b.activeChats || 0))[0]
-        : registeredUsers[0];
-
-      const aiForward = {
-        id: `ai_${Date.now() + 1}`,
-        sender: 'ai',
-        senderName: 'Sofia (AI Assistant)',
-        text: `📤 Withdrawal request ("${text}") has been shared with our support team. Transferring you to an available agent who is free or has fewer chats... Connected to ${chosenAgent.name}!`,
-        timestamp: timeNow,
-        type: 'system'
-      };
-
-      const updated = conversations.map(c =>
-        c.id === convId
-          ? {
-              ...c,
-              ticketBadge: `💸 Withdrawal Alert`,
-              assignedAgent: chosenAgent.name,
-              unread: (c.unread || 0) + 1,
-              messages: [...(c.messages || []), userMsg, aiForward]
-            }
-          : c
-      );
-      setConversations(updated);
-      set(ref(db, 'conversations'), updated);
-      setAssignedHumanAgent(chosenAgent.name);
-      setAiStep('agent_connected');
-    } else if (aiStep === 'menu') {
-      if (/deposit/i.test(text)) {
-        handleAiOptionClick('deposit');
-      } else if (/withdraw/i.test(text)) {
-        handleAiOptionClick('withdrawal');
-      } else {
-        const aiPrompt = {
-          id: `ai_${Date.now() + 1}`,
-          sender: 'ai',
-          senderName: 'Sofia (AI Assistant)',
-          text: 'Please select whether your inquiry is related to a Deposit, Withdrawal, or click "Talk to Live Agent" below so I can route you immediately.',
-          timestamp: timeNow,
-          type: 'text'
-        };
-        const updated = conversations.map(c =>
-          c.id === convId ? { ...c, messages: [...(c.messages || []), userMsg, aiPrompt] } : c
-        );
-        setConversations(updated);
-        set(ref(db, 'conversations'), updated);
-      }
+      transferToLeastBusyAgent(convId, text);
     } else {
-      const updated = conversations.map(c =>
-        c.id === convId
-          ? { ...c, unread: (c.unread || 0) + 1, messages: [...(c.messages || []), userMsg] }
-          : c
-      );
+      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...(c.messages || []), userMsg] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
     }
   };
 
-  // Agent Reply Handler
   const handleSendAgentMessage = (targetId, customText = null, msgType = 'text') => {
     const textToSend = customText || agentInput;
     if (!textToSend.trim()) return;
 
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newMsg = {
-      id: `agent_${Date.now()}`,
-      sender: 'agent',
-      senderName: currentAgent.name,
-      text: textToSend,
-      timestamp: timeNow,
-      type: msgType
-    };
+    const newMsg = { id: `agent_${Date.now()}`, sender: 'agent', senderName: currentAgent.name, text: textToSend, timestamp: timeNow, type: msgType };
 
     const updatedConversations = conversations.map(conv =>
-      conv.id === targetId
-        ? { ...conv, assignedAgent: currentAgent.name, messages: [...(conv.messages || []), newMsg], unread: 0 }
-        : conv
+      conv.id === targetId ? { ...conv, assignedAgent: currentAgent.name, messages: [...conv.messages, newMsg], unread: 0 } : conv
     );
 
     setConversations(updatedConversations);
@@ -403,32 +313,99 @@ export default function App() {
       timestamp: 'Just now',
       type: 'text'
     }];
-    const updated = conversations.map(c =>
-      c.id === convId ? { ...c, assignedAgent: 'Sofia (AI)', ticketBadge: null, messages: resetMsg } : c
-    );
+    const updated = conversations.map(c => c.id === convId ? { ...c, assignedAgent: 'Sofia (AI)', ticketBadge: null, messages: resetMsg } : c);
     setConversations(updated);
     set(ref(db, 'conversations'), updated);
     setAiStep('menu');
     setAssignedHumanAgent(null);
   };
 
-  const filteredConversations = conversations.filter(c => {
-    const matchesSearch = c.id.includes(searchQuery) || c.visitorName.toLowerCase().includes(searchQuery.toLowerCase());
-    if (filterStatus === 'active') return matchesSearch && c.status === 'active';
-    if (filterStatus === 'archived') return matchesSearch && c.status === 'archived';
-    return matchesSearch;
-  });
+  // If opened via ?chat=true, show ONLY clean Customer Chat Widget
+  if (isCustomerLink) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-2 sm:p-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[90vh] max-w-md w-full">
+          <div className="bg-slate-950 p-4 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center font-bold text-white text-xs">
+                {assignedHumanAgent ? assignedHumanAgent[0] : 'AI'}
+              </div>
+              <div>
+                <div className="text-sm font-bold text-white">{assignedHumanAgent ? `${assignedHumanAgent} (Live Agent)` : 'Sofia (AI Support)'}</div>
+                <div className="text-[10px] text-emerald-400">● 24/7 Live Support Active</div>
+              </div>
+            </div>
+            <button onClick={resetCustomerAiChat} className="text-[11px] bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-xl text-amber-300">↻ Reset</button>
+          </div>
 
+          <div className="flex-1 overflow-y-auto bg-slate-950/50 p-4 space-y-3">
+            {customerActiveTab === 'home' ? (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-purple-900/40 to-slate-900 p-5 rounded-2xl border border-purple-500/20">
+                  <h2 className="text-lg font-bold text-white">Hi Dear,</h2>
+                  <h3 className="text-xl font-bold text-purple-400 mb-3">How can we help?</h3>
+                  <div className="space-y-2 text-xs">
+                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between"><span>Alternate Site 1</span><span>↗</span></div>
+                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between"><span>Alternate Site 2</span><span>↗</span></div>
+                  </div>
+                </div>
+                <div onClick={() => setCustomerActiveTab('messages')} className="bg-purple-600 text-white p-4 rounded-2xl font-bold text-sm flex justify-between items-center cursor-pointer shadow-lg">
+                  <span>Send us a message</span><span>💬</span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 text-xs space-y-1">
+                  <div className="font-bold text-amber-400">Notice for all Users :</div>
+                  <p className="text-slate-300">If your deposit is rejected, wait 10 minutes or use Sofia AI to create a priority ticket / connect with an agent.</p>
+                </div>
+
+                {conversations.find(c => c.id === '773726619')?.messages?.map((m, idx) => (
+                  <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[82%] p-3 rounded-2xl text-xs ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : m.type === 'system' ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-200' : 'bg-slate-800 text-slate-200'}`}>
+                      <div className="font-bold text-[9px] opacity-75 mb-0.5">{m.sender === 'visitor' ? 'You' : (m.senderName || 'Sofia (AI)')}</div>
+                      <div>{m.text}</div>
+                      <div className="text-[9px] opacity-60 text-right mt-1">{m.timestamp}</div>
+                    </div>
+                  </div>
+                ))}
+
+                {aiStep !== 'agent_connected' && (
+                  <div className="pt-2 flex flex-wrap gap-2">
+                    <button onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">💳 Deposit Issue (Ticket)</button>
+                    <button onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">💸 Withdrawal Issue</button>
+                    <button onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1.5 rounded-full font-semibold">👨‍💻 Talk to Live Agent</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {customerActiveTab === 'messages' && (
+            <form onSubmit={handleSendCustomerMessage} className="p-3 bg-slate-900 border-t border-slate-800 flex items-center space-x-2">
+              <input type="text" value={customerInput} onChange={(e) => setCustomerInput(e.target.value)} placeholder="Type your message in English..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none" />
+              <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold">Send</button>
+            </form>
+          )}
+
+          <div className="grid grid-cols-2 border-t border-slate-800 bg-slate-950 p-2 text-center text-xs">
+            <button onClick={() => setCustomerActiveTab('home')} className={`py-2 rounded-xl font-medium ${customerActiveTab === 'home' ? 'bg-purple-600/20 text-purple-300' : 'text-slate-400'}`}>🏠 Home</button>
+            <button onClick={() => setCustomerActiveTab('messages')} className={`py-2 rounded-xl font-medium ${customerActiveTab === 'messages' ? 'bg-purple-600/20 text-purple-300' : 'text-slate-400'}`}>💬 Messages</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If Agent is not logged in, show Login Screen with 24/7 Floating Chat Widget button
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-md shadow-2xl">
           <div className="text-center mb-6">
-            <div className="bg-purple-600 w-12 h-12 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold mb-3 shadow-lg shadow-purple-600/30">
-              📍
-            </div>
+            <div className="bg-purple-600 w-12 h-12 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold mb-3 shadow-lg shadow-purple-600/30">📍</div>
             <h1 className="text-2xl font-bold tracking-tight text-white">AuraChat Enterprise Pro</h1>
-            <p className="text-xs text-slate-400 mt-1">AI-Powered Live Chat & Support Routing Platform</p>
+            <p className="text-xs text-slate-400 mt-1">Agent Login & Support Console</p>
           </div>
 
           <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 mb-6 text-xs font-semibold">
@@ -456,175 +433,91 @@ export default function App() {
             </button>
           </form>
         </div>
+
+        {/* BOTTOM-RIGHT FLOATING 24/7 CHAT BUTTON FOR VISITORS */}
+        <div className="fixed bottom-6 right-6 z-50">
+          {!isOpenChatWidget ? (
+            <button 
+              onClick={() => setIsOpenChatWidget(true)}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-3.5 rounded-full shadow-2xl flex items-center space-x-2 font-bold text-sm transition transform hover:scale-105 border border-purple-400/30 animate-bounce"
+            >
+              <span>💬</span>
+              <span>24/7 Live Support</span>
+            </button>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[520px] w-[360px]">
+              <div className="bg-slate-950 p-3 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-xs">AI</div>
+                  <span className="text-xs font-bold text-white">Sofia (24/7 Support)</span>
+                </div>
+                <button onClick={() => setIsOpenChatWidget(false)} className="text-slate-400 hover:text-white font-bold text-sm px-2">✕</button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-950/40 text-xs">
+                {conversations.find(c => c.id === '773726619')?.messages?.map((m, idx) => (
+                  <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] p-2.5 rounded-xl ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-200'}`}>
+                      <div>{m.text}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-2 border-t border-slate-800 bg-slate-950 flex space-x-1">
+                <input type="text" value={customerInput} onChange={(e) => setCustomerInput(e.target.value)} placeholder="Type message..." className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white" />
+                <button onClick={handleSendCustomerMessage} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">Send</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
+  // AGENT CONSOLE (When Agent is Logged In)
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
-      {/* TOP NAVBAR (Hidden on Customer Direct Link ?chat=true) */}
-      {!isCustomerLink && (
-        <nav className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-2.5 flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center space-x-3">
-            <div className="bg-purple-600 p-2 rounded-xl text-white font-bold text-lg">📍</div>
-            <div>
-              <span className="text-xl font-bold text-white">AuraChat</span>
-              <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full ml-2 border border-purple-500/30 font-semibold">Enterprise Pro</span>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-3 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
-            <button
-              onClick={() => setIsAcceptingChats(!isAcceptingChats)}
-              className={`px-3 py-1 rounded-lg font-semibold flex items-center space-x-2 transition ${isAcceptingChats ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}
-            >
-              <span className={`w-2 h-2 rounded-full ${isAcceptingChats ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
-              <span>{isAcceptingChats ? 'Accepting Chats' : 'Not Accepting'}</span>
-            </button>
-            <span className="text-slate-400 border-l border-slate-800 pl-3">👑 {currentAgent.name}</span>
-            <button onClick={() => setIsLoggedIn(false)} className="text-rose-400 hover:underline pl-2">Logout</button>
-          </div>
-
-          <div className="flex items-center space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-            <button onClick={() => setActiveNavTab('chats')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'chats' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>💬 Agent Chats</button>
-            <button onClick={() => setActiveNavTab('customer-view')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'customer-view' ? 'bg-emerald-600 text-white' : 'text-emerald-400 border border-emerald-500/30'}`}>📱 Customer Phone View</button>
-            <button onClick={() => setActiveNavTab('tickets')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'tickets' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>🎫 AI Tickets ({ticketsList.length})</button>
-            <button onClick={() => setActiveNavTab('team')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'team' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>👥 Team</button>
-          </div>
-        </nav>
-      )}
-
-      {/* VIEW: CUSTOMER PHONE WIDGET WITH SOFIA AI */}
-      {activeNavTab === 'customer-view' && (
-        <div className="max-w-md mx-auto my-4 sm:my-6 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[88vh] sm:h-[760px] w-full">
-          <div className="bg-slate-950 p-4 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center font-bold text-white text-xs">
-                {assignedHumanAgent ? assignedHumanAgent[0] : 'AI'}
-              </div>
-              <div>
-                <div className="text-sm font-bold text-white">
-                  {assignedHumanAgent ? `${assignedHumanAgent} (Live Agent)` : 'Sofia (AI Support)'}
-                </div>
-                <div className="text-[10px] text-emerald-400">
-                  ● {assignedHumanAgent ? 'Connected to Human Support' : 'Instant AI Triage'}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button onClick={resetCustomerAiChat} className="text-[11px] bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-xl text-amber-300">↻ Reset AI</button>
-              {!isCustomerLink && (
-                <button onClick={() => setActiveNavTab('chats')} className="text-[11px] bg-purple-600/20 text-purple-300 border border-purple-500/30 px-2.5 py-1.5 rounded-xl">Agent View ➔</button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto bg-slate-950/50 p-4">
-            {customerActiveTab === 'home' ? (
-              <div className="space-y-4">
-                <div className="bg-gradient-to-r from-purple-900/40 to-slate-900 p-5 rounded-2xl border border-purple-500/20">
-                  <h2 className="text-lg font-bold text-white">Hi Dear,</h2>
-                  <h3 className="text-xl font-bold text-purple-400 mb-3">How can we help?</h3>
-                  <div className="space-y-2 text-xs">
-                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between"><span>Alternate Site 1</span><span>↗</span></div>
-                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between"><span>Alternate Site 2</span><span>↗</span></div>
-                  </div>
-                </div>
-                <div onClick={() => setCustomerActiveTab('messages')} className="bg-purple-600 hover:bg-purple-500 text-white p-4 rounded-2xl font-bold text-sm flex justify-between items-center cursor-pointer shadow-lg">
-                  <span>Send us a message</span><span>💬</span>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 text-xs space-y-1">
-                  <div className="font-bold text-amber-400">Notice for all Users :</div>
-                  <p className="text-slate-300">If your deposit is rejected, please wait 10 minutes before resubmitting. Our AI assistant Sofia can create a priority ticket or connect you to a free agent.</p>
-                </div>
-
-                {conversations.find(c => c.id === '773726619')?.messages?.map((m, idx) => (
-                  <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[82%] p-3 rounded-2xl text-xs ${
-                      m.sender === 'visitor'
-                        ? 'bg-purple-600 text-white'
-                        : m.type === 'system'
-                        ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-200'
-                        : 'bg-slate-800 text-slate-200'
-                    }`}>
-                      <div className="font-bold text-[9px] opacity-75 mb-0.5">
-                        {m.sender === 'visitor' ? 'You' : (m.senderName || 'Sofia (AI)')}
-                      </div>
-                      <div>{m.text}</div>
-                      <div className="text-[9px] opacity-60 text-right mt-1">{m.timestamp}</div>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Sofia AI Quick Action Pills */}
-                {aiStep !== 'agent_connected' && (
-                  <div className="pt-2 flex flex-wrap gap-2">
-                    <button onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">
-                      💳 Deposit Issue (Create Ticket)
-                    </button>
-                    <button onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">
-                      💸 Withdrawal Issue
-                    </button>
-                    <button onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white text-xs px-3 py-1.5 rounded-full transition font-semibold">
-                      👨‍💻 Talk to Live Agent
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {customerActiveTab === 'messages' && (
-            <form onSubmit={handleSendCustomerMessage} className="p-3 bg-slate-900 border-t border-slate-800 flex items-center space-x-2">
-              <input
-                type="text"
-                value={customerInput}
-                onChange={(e) => setCustomerInput(e.target.value)}
-                placeholder={aiStep === 'deposit_details' ? 'Enter User ID, Amount & TxID...' : 'Type your message in English...'}
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-              />
-              <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold">Send</button>
-            </form>
-          )}
-
-          <div className="grid grid-cols-2 border-t border-slate-800 bg-slate-950 p-2 text-center text-xs">
-            <button onClick={() => setCustomerActiveTab('home')} className={`py-2 rounded-xl font-medium ${customerActiveTab === 'home' ? 'bg-purple-600/20 text-purple-300' : 'text-slate-400'}`}>🏠 Home</button>
-            <button onClick={() => setCustomerActiveTab('messages')} className={`py-2 rounded-xl font-medium ${customerActiveTab === 'messages' ? 'bg-purple-600/20 text-purple-300' : 'text-slate-400'}`}>💬 Messages</button>
+      <nav className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-2.5 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center space-x-3">
+          <div className="bg-purple-600 p-2 rounded-xl text-white font-bold text-lg">📍</div>
+          <div>
+            <span className="text-xl font-bold text-white">AuraChat</span>
+            <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full ml-2 border border-purple-500/30 font-semibold">Enterprise Pro</span>
           </div>
         </div>
-      )}
 
-      {/* VIEW: AGENT CONSOLE INBOX */}
+        <div className="flex items-center space-x-3 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
+          <button onClick={() => setIsAcceptingChats(!isAcceptingChats)} className={`px-3 py-1 rounded-lg font-semibold flex items-center space-x-2 transition ${isAcceptingChats ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+            <span className={`w-2 h-2 rounded-full ${isAcceptingChats ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+            <span>{isAcceptingChats ? 'Accepting Chats' : 'Not Accepting'}</span>
+          </button>
+          <span className="text-slate-400 border-l border-slate-800 pl-3">👑 {currentAgent.name}</span>
+          <button onClick={() => setIsLoggedIn(false)} className="text-rose-400 hover:underline pl-2">Logout</button>
+        </div>
+
+        <div className="flex items-center space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+          <button onClick={() => setActiveNavTab('chats')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'chats' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>💬 Agent Chats</button>
+          <button onClick={() => setActiveNavTab('tickets')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'tickets' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>🎫 AI Tickets ({ticketsList.length})</button>
+          <button onClick={() => setActiveNavTab('team')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'team' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>👥 Team</button>
+        </div>
+      </nav>
+
       {activeNavTab === 'chats' && (
         <div className="max-w-[1700px] mx-auto p-4 grid grid-cols-1 md:grid-cols-12 gap-4 h-[88vh] flex-1 w-full">
           <div className="md:col-span-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col">
             <div className="flex justify-between items-center mb-3">
               <span className="font-bold text-sm text-slate-200">Inbox ({conversations.length})</span>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 px-2 py-1">
-                <option value="all">All</option>
-                <option value="active">Active</option>
-              </select>
             </div>
             <input type="text" placeholder="🔍 Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white mb-3" />
             <div className="space-y-2 overflow-y-auto flex-1">
-              {filteredConversations.map(c => (
-                <div
-                  key={c.id}
-                  onClick={() => setSelectedConvId(c.id)}
-                  className={`p-3 rounded-xl cursor-pointer border transition ${selectedConvId === c.id ? 'bg-purple-600/20 border-purple-500/50' : 'bg-slate-950 border-slate-800'}`}
-                >
+              {conversations.map(c => (
+                <div key={c.id} onClick={() => setSelectedConvId(c.id)} className={`p-3 rounded-xl cursor-pointer border transition ${selectedConvId === c.id ? 'bg-purple-600/20 border-purple-500/50' : 'bg-slate-950 border-slate-800'}`}>
                   <div className="flex justify-between items-center mb-1">
                     <span className="font-bold text-xs text-white">{c.visitorName}</span>
                     <span className="text-[10px] text-purple-300 bg-purple-500/10 px-1.5 py-0.5 rounded">{c.assignedAgent || 'AI'}</span>
                   </div>
-                  {c.ticketBadge && (
-                    <div className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded mb-1 inline-block font-semibold">
-                      {c.ticketBadge}
-                    </div>
-                  )}
+                  {c.ticketBadge && <div className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded mb-1 inline-block font-semibold">{c.ticketBadge}</div>}
                   <p className="text-xs text-slate-400 truncate">{c.messages?.[c.messages.length - 1]?.text}</p>
                 </div>
               ))}
@@ -638,51 +531,20 @@ export default function App() {
                   <span className="font-bold text-sm text-white">{selectedConversation.visitorName}</span>
                   <span className="text-xs bg-purple-600/20 text-purple-300 px-2 py-0.5 rounded">Assigned: {selectedConversation.assignedAgent || 'Sofia (AI)'}</span>
                 </div>
-                <div className="text-xs text-slate-400 mt-0.5">📍 {selectedConversation.location}</div>
               </div>
-              {selectedConversation.ticketBadge && (
-                <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full font-semibold">
-                  {selectedConversation.ticketBadge}
-                </span>
-              )}
             </div>
 
             <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-950/30">
               {selectedConversation.messages?.map((m, idx) => (
                 <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${
-                    m.sender === 'visitor'
-                      ? 'bg-slate-800 text-slate-200'
-                      : m.sender === 'ai'
-                      ? 'bg-cyan-900/50 border border-cyan-500/30 text-cyan-100'
-                      : 'bg-purple-600 text-white'
-                  }`}>
-                    <div className="text-[10px] opacity-80 mb-0.5 font-semibold">
-                      {m.senderName || (m.sender === 'visitor' ? selectedConversation.visitorName : currentAgent.name)}
-                    </div>
+                  <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${m.sender === 'visitor' ? 'bg-slate-800 text-slate-200' : m.sender === 'ai' ? 'bg-cyan-900/50 text-cyan-100' : 'bg-purple-600 text-white'}`}>
+                    <div className="text-[10px] opacity-80 mb-0.5 font-semibold">{m.senderName || (m.sender === 'visitor' ? selectedConversation.visitorName : currentAgent.name)}</div>
                     <span>{m.text}</span>
                     <div className="text-[10px] text-right mt-1 opacity-70">{m.timestamp}</div>
                   </div>
                 </div>
               ))}
             </div>
-
-            <div className="px-4 py-2 border-t border-slate-800 bg-slate-900 flex items-center justify-between text-xs">
-              <button onClick={() => setShowCannedMenu(!showCannedMenu)} className="bg-purple-600/20 text-purple-300 px-2.5 py-1 rounded-lg border border-purple-500/30 font-semibold">
-                ⚡ Canned Responses (#)
-              </button>
-            </div>
-
-            {showCannedMenu && (
-              <div className="bg-slate-950 border border-slate-800 p-2 mx-4 mb-2 rounded-xl grid grid-cols-2 gap-2">
-                {cannedList.map((macro, i) => (
-                  <div key={i} onClick={() => handleSendAgentMessage(selectedConvId, macro.text)} className="bg-slate-900 hover:bg-slate-800 p-2 rounded-lg cursor-pointer border border-slate-800">
-                    <div className="text-xs font-bold text-purple-400">{macro.code} • {macro.title}</div>
-                    <p className="text-[10px] text-slate-300 truncate">{macro.text}</p>
-                  </div>
-                ))}
-              </div>
-            )}
 
             <form onSubmit={(e) => { e.preventDefault(); handleSendAgentMessage(selectedConvId); }} className="p-3 border-t border-slate-800 bg-slate-950 flex items-center space-x-2">
               <input type="text" value={agentInput} onChange={(e) => setAgentInput(e.target.value)} placeholder="Reply as Live Agent..." className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none" />
@@ -693,34 +555,25 @@ export default function App() {
           <div className="md:col-span-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Visitor Live GPS Pin</h3>
             <div className="w-full h-52 rounded-xl overflow-hidden border border-slate-800">
-              <iframe title="Visitor GPS Pin" width="100%" height="100%" style={{ border: 0 }} loading="lazy" src={`https://maps.google.com/maps?q=${selectedConversation.lat},${selectedConversation.lng}&z=14&output=embed`} />
-            </div>
-            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs space-y-2">
-              <div className="flex justify-between"><span className="text-slate-500">ID</span><span className="font-mono text-purple-300">{selectedConversation.id}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Handled By</span><span className="text-emerald-400 font-semibold">{selectedConversation.assignedAgent || 'Sofia (AI)'}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Location</span><span className="text-slate-200">{selectedConversation.location}</span></div>
+              <iframe title="GPS Pin" width="100%" height="100%" style={{ border: 0 }} loading="lazy" src={`https://maps.google.com/maps?q=${selectedConversation.lat},${selectedConversation.lng}&z=14&output=embed`} />
             </div>
           </div>
         </div>
       )}
 
-      {/* VIEW: AI GENERATED TICKETS TAB */}
       {activeNavTab === 'tickets' && (
         <div className="max-w-5xl mx-auto p-8 flex-1 w-full">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-            <h2 className="text-xl font-bold text-white mb-1">🎫 Sofia AI Auto-Generated Deposit Tickets</h2>
-            <p className="text-xs text-slate-400 mb-6">Tickets automatically created when customers submit deposit details to Sofia AI.</p>
-            {ticketsList.length === 0 ? (
-              <p className="text-xs text-slate-500">No tickets created yet. Test by choosing "Deposit Issue" in Customer Phone View.</p>
-            ) : (
+            <h2 className="text-xl font-bold text-white mb-1">🎫 AI Generated Deposit Tickets</h2>
+            {ticketsList.length === 0 ? <p className="text-xs text-slate-500">No tickets yet.</p> : (
               <div className="space-y-3">
                 {ticketsList.map((t, i) => (
-                  <div key={i} className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex justify-between items-center">
+                  <div key={i} className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between">
                     <div>
                       <div className="font-bold text-sm text-amber-400">{t.id} • {t.customer}</div>
-                      <p className="text-xs text-slate-300 mt-1">{t.details}</p>
+                      <p className="text-xs text-slate-300">{t.details}</p>
                     </div>
-                    <span className="text-xs bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/30">{t.status} • {t.createdAt}</span>
+                    <span className="text-xs text-emerald-300">{t.status}</span>
                   </div>
                 ))}
               </div>
@@ -729,22 +582,18 @@ export default function App() {
         </div>
       )}
 
-      {/* VIEW: TEAM TAB */}
       {activeNavTab === 'team' && (
         <div className="max-w-5xl mx-auto p-8 flex-1 w-full">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-            <h2 className="text-xl font-bold text-white mb-4">Team Load Balancing & Routing</h2>
+            <h2 className="text-xl font-bold text-white mb-4">Team Members</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {registeredUsers.map(u => (
-                <div key={u.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex justify-between items-center">
+                <div key={u.id} className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between">
                   <div>
                     <div className="font-bold text-sm text-white">{u.name} ({u.role})</div>
                     <div className="text-xs text-slate-400">{u.email}</div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs text-emerald-400 block">{u.status}</span>
-                    <span className="text-[11px] text-slate-400">Active Chats: {u.activeChats || 0}</span>
-                  </div>
+                  <span className="text-xs text-emerald-400">{u.status}</span>
                 </div>
               ))}
             </div>
