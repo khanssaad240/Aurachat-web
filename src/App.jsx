@@ -53,7 +53,7 @@ const INITIAL_CONVERSATIONS = [
         id: 'welcome_ai',
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: 'Welcome to AuraChat 24/7 Support! I am Sofia. How can I help you today? Please choose an option below or type your query:',
+        text: 'Welcome to AuraChat 24/7 Support! I am Sofia. How can I help you with your deposit, withdrawal, or account today?',
         timestamp: 'Just now',
         type: 'text'
       }
@@ -171,7 +171,10 @@ export default function App() {
       ? [...availableAgents].sort((a, b) => (a.activeChats || 0) - (b.activeChats || 0))[0]
       : registeredUsers[0];
 
-    const newMessages = [];
+    const targetConv = conversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
+    const existingMsgs = targetConv.messages || [];
+
+    const newMessages = [...existingMsgs];
     if (customerText) {
       newMessages.push({ id: `cust_${Date.now()}`, sender: 'visitor', senderName: 'Mohsin', text: customerText, timestamp: timeNow, type: 'text' });
     }
@@ -191,7 +194,7 @@ export default function App() {
           ...conv,
           assignedAgent: chosenAgent.name,
           unread: (conv.unread || 0) + 1,
-          messages: [...(conv.messages || []), ...newMessages]
+          messages: newMessages
         };
       }
       return conv;
@@ -206,6 +209,8 @@ export default function App() {
   const handleAiOptionClick = (option) => {
     const convId = '773726619';
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const targetConv = conversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
+    const existingMsgs = targetConv.messages || [];
 
     if (option === 'deposit') {
       const userMsg = { id: `c_${Date.now()}`, sender: 'visitor', senderName: 'Mohsin', text: 'I have a Deposit issue', timestamp: timeNow, type: 'text' };
@@ -217,7 +222,7 @@ export default function App() {
         timestamp: timeNow,
         type: 'text'
       };
-      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...(c.messages || []), userMsg, aiReply] } : c);
+      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg, aiReply] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
       setAiStep('deposit_details');
@@ -231,7 +236,7 @@ export default function App() {
         timestamp: timeNow,
         type: 'text'
       };
-      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...(c.messages || []), userMsg, aiReply] } : c);
+      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg, aiReply] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
       setAiStep('withdrawal_details');
@@ -248,6 +253,9 @@ export default function App() {
     const text = customerInput.trim();
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setCustomerInput('');
+
+    const targetConv = conversations.find(c => c.id === convId) || INITIAL_CONVERSATIONS[1];
+    const existingMsgs = targetConv.messages || [];
 
     const wantsAgent = /agent|human|support|representative|person|talk to/i.test(text);
     if (wantsAgent && aiStep !== 'agent_connected') {
@@ -273,14 +281,14 @@ export default function App() {
         type: 'text'
       };
 
-      const updated = conversations.map(c => c.id === convId ? { ...c, ticketBadge: `🎫 ${ticketId} (Deposit)`, messages: [...(c.messages || []), userMsg, aiConfirm] } : c);
+      const updated = conversations.map(c => c.id === convId ? { ...c, ticketBadge: `🎫 ${ticketId} (Deposit)`, messages: [...existingMsgs, userMsg, aiConfirm] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
       transferToLeastBusyAgent(convId);
     } else if (aiStep === 'withdrawal_details') {
       transferToLeastBusyAgent(convId, text);
     } else {
-      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...(c.messages || []), userMsg] } : c);
+      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...existingMsgs, userMsg] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
     }
@@ -293,8 +301,11 @@ export default function App() {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newMsg = { id: `agent_${Date.now()}`, sender: 'agent', senderName: currentAgent.name, text: textToSend, timestamp: timeNow, type: msgType };
 
+    const targetConv = conversations.find(c => c.id === targetId) || INITIAL_CONVERSATIONS[1];
+    const existingMsgs = targetConv.messages || [];
+
     const updatedConversations = conversations.map(conv =>
-      conv.id === targetId ? { ...conv, assignedAgent: currentAgent.name, messages: [...conv.messages, newMsg], unread: 0 } : conv
+      conv.id === targetId ? { ...conv, assignedAgent: currentAgent.name, messages: [...existingMsgs, newMsg], unread: 0 } : conv
     );
 
     setConversations(updatedConversations);
@@ -317,7 +328,7 @@ export default function App() {
       id: `welcome_${Date.now()}`,
       sender: 'ai',
       senderName: 'Sofia (AI Assistant)',
-      text: 'Welcome to AuraChat 24/7 Support! I am Sofia. How can I help you today? Please choose an option below:',
+      text: 'Welcome to AuraChat 24/7 Support! I am Sofia. How can I help you with your deposit, withdrawal, or account today?',
       timestamp: 'Just now',
       type: 'text'
     }];
@@ -330,6 +341,7 @@ export default function App() {
 
   // Direct Customer Link view (?chat=true)
   if (isCustomerLink) {
+    const currentConv = conversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[1];
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-2 sm:p-4">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[90vh] max-w-md w-full">
@@ -353,7 +365,7 @@ export default function App() {
                 <p className="text-slate-300">For deposit, withdrawal or account issues, choose an option below or talk directly to our live support team.</p>
               </div>
 
-              {conversations.find(c => c.id === '773726619')?.messages?.map((m, idx) => (
+              {currentConv.messages?.map((m, idx) => (
                 <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[82%] p-3 rounded-2xl text-xs ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : m.type === 'system' ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-200' : 'bg-slate-800 text-slate-200'}`}>
                     <div className="font-bold text-[9px] opacity-75 mb-0.5">{m.sender === 'visitor' ? 'You' : (m.senderName || 'Sofia (AI)')}</div>
@@ -365,9 +377,9 @@ export default function App() {
 
               {aiStep !== 'agent_connected' && (
                 <div className="pt-2 flex flex-wrap gap-2">
-                  <button onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">💳 Deposit Issue (Ticket)</button>
-                  <button onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">💸 Withdrawal Issue</button>
-                  <button onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1.5 rounded-full font-semibold">👨‍💻 Talk to Live Agent</button>
+                  <button type="button" onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition cursor-pointer">💳 Deposit Issue (Ticket)</button>
+                  <button type="button" onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition cursor-pointer">💸 Withdrawal Issue</button>
+                  <button type="button" onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1.5 rounded-full font-semibold cursor-pointer">👨‍💻 Talk to Live Agent</button>
                 </div>
               )}
             </div>
@@ -384,6 +396,7 @@ export default function App() {
 
   // Login Screen with Floating 24/7 Chat Widget
   if (!isLoggedIn) {
+    const currentConv = conversations.find(c => c.id === '773726619') || INITIAL_CONVERSATIONS[1];
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-md shadow-2xl">
@@ -423,8 +436,9 @@ export default function App() {
         <div className="fixed bottom-6 right-6 z-50">
           {!isOpenChatWidget ? (
             <button 
+              type="button"
               onClick={() => setIsOpenChatWidget(true)}
-              className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-3.5 rounded-full shadow-2xl flex items-center space-x-2 font-bold text-sm transition transform hover:scale-105 border border-purple-400/30 animate-bounce"
+              className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-3.5 rounded-full shadow-2xl flex items-center space-x-2 font-bold text-sm transition transform hover:scale-105 border border-purple-400/30 animate-bounce cursor-pointer"
             >
               <span>💬</span>
               <span>24/7 Live Support</span>
@@ -436,11 +450,11 @@ export default function App() {
                   <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-xs">AI</div>
                   <span className="text-xs font-bold text-white">Sofia (24/7 Support)</span>
                 </div>
-                <button onClick={() => setIsOpenChatWidget(false)} className="text-slate-400 hover:text-white font-bold text-sm px-2">✕</button>
+                <button type="button" onClick={() => setIsOpenChatWidget(false)} className="text-slate-400 hover:text-white font-bold text-sm px-2 cursor-pointer">✕</button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-950/40 text-xs">
-                {conversations.find(c => c.id === '773726619')?.messages?.map((m, idx) => (
+                {currentConv.messages?.map((m, idx) => (
                   <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] p-2.5 rounded-xl ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : m.type === 'system' ? 'bg-emerald-500/20 text-emerald-200' : 'bg-slate-800 text-slate-200'}`}>
                       <div>{m.text}</div>
@@ -449,9 +463,9 @@ export default function App() {
                 ))}
 
                 <div className="pt-2 flex flex-wrap gap-1">
-                  <button onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full">💳 Deposit Issue</button>
-                  <button onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full">💸 Withdrawal</button>
-                  <button onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/30 text-emerald-300 text-[10px] px-2.5 py-1 rounded-full font-semibold">👨‍💻 Live Agent</button>
+                  <button type="button" onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full cursor-pointer">💳 Deposit Issue</button>
+                  <button type="button" onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full cursor-pointer">💸 Withdrawal</button>
+                  <button type="button" onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/30 text-emerald-300 text-[10px] px-2.5 py-1 rounded-full font-semibold cursor-pointer">👨‍💻 Live Agent</button>
                 </div>
               </div>
 
@@ -479,18 +493,18 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-3 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
-          <button onClick={() => setIsAcceptingChats(!isAcceptingChats)} className={`px-3 py-1 rounded-lg font-semibold flex items-center space-x-2 transition ${isAcceptingChats ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+          <button type="button" onClick={() => setIsAcceptingChats(!isAcceptingChats)} className={`px-3 py-1 rounded-lg font-semibold flex items-center space-x-2 transition ${isAcceptingChats ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
             <span className={`w-2 h-2 rounded-full ${isAcceptingChats ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
             <span>{isAcceptingChats ? 'Accepting Chats' : 'Not Accepting'}</span>
           </button>
           <span className="text-slate-400 border-l border-slate-800 pl-3">👑 {currentAgent.name}</span>
-          <button onClick={() => setIsLoggedIn(false)} className="text-rose-400 hover:underline pl-2">Logout</button>
+          <button type="button" onClick={() => setIsLoggedIn(false)} className="text-rose-400 hover:underline pl-2">Logout</button>
         </div>
 
         <div className="flex items-center space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-          <button onClick={() => setActiveNavTab('chats')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'chats' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>💬 Agent Chats</button>
-          <button onClick={() => setActiveNavTab('tickets')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'tickets' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>🎫 AI Tickets ({ticketsList.length})</button>
-          <button onClick={() => setActiveNavTab('team')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'team' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>👥 Team</button>
+          <button type="button" onClick={() => setActiveNavTab('chats')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'chats' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>💬 Agent Chats</button>
+          <button type="button" onClick={() => setActiveNavTab('tickets')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'tickets' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>🎫 AI Tickets ({ticketsList.length})</button>
+          <button type="button" onClick={() => setActiveNavTab('team')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'team' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>👥 Team</button>
         </div>
       </nav>
 
