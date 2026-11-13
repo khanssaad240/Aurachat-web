@@ -75,15 +75,18 @@ const INITIAL_CANNED = [
 ];
 
 export default function App() {
+  // Detect if opened via direct customer link (?chat=true)
+  const isCustomerLink = new URLSearchParams(window.location.search).get('chat') === 'true';
+
   const [authMode, setAuthMode] = useState('signin');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(isCustomerLink);
   const [emailInput, setEmailInput] = useState('harrytech0000@gmail.com');
   const [passwordInput, setPasswordInput] = useState('••••••••');
   const [nameInput, setNameInput] = useState('Haris Yousafzai');
   const [currentAgent, setCurrentAgent] = useState({ name: 'Haris Yousafzai', role: 'Admin', email: 'harrytech0000@gmail.com' });
 
   const [registeredUsers, setRegisteredUsers] = useState(INITIAL_TEAM);
-  const [activeNavTab, setActiveNavTab] = useState('chats');
+  const [activeNavTab, setActiveNavTab] = useState(isCustomerLink ? 'customer-view' : 'chats');
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
   const [cannedList, setCannedList] = useState(INITIAL_CANNED);
   const [ticketsList, setTicketsList] = useState([]);
@@ -100,8 +103,6 @@ export default function App() {
   const [customerInput, setCustomerInput] = useState('');
   const [aiStep, setAiStep] = useState('menu'); // 'menu' | 'deposit_details' | 'withdrawal_details' | 'agent_connected'
   const [assignedHumanAgent, setAssignedHumanAgent] = useState(null);
-
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -164,28 +165,11 @@ export default function App() {
 
   const selectedConversation = conversations.find((c) => c.id === selectedConvId) || conversations[0];
 
-  // Helper to push new message to a conversation in Firebase
-  const appendMessageToConv = (convId, newMsg, extraUpdates = {}) => {
-    const updated = conversations.map(conv => {
-      if (conv.id === convId) {
-        return {
-          ...conv,
-          ...extraUpdates,
-          messages: [...(conv.messages || []), newMsg]
-        };
-      }
-      return conv;
-    });
-    setConversations(updated);
-    set(ref(db, 'conversations'), updated);
-  };
-
   // Smart Load-Balanced Transfer to Free / Least Busy Agent
   const transferToLeastBusyAgent = (convId, customerText = null) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const availableAgents = registeredUsers.filter(u => u.status === 'Accepting chats');
     
-    // Pick agent with lowest activeChats
     const chosenAgent = availableAgents.length > 0
       ? [...availableAgents].sort((a, b) => (a.activeChats || 0) - (b.activeChats || 0))[0]
       : registeredUsers[0];
@@ -244,12 +228,9 @@ export default function App() {
         timestamp: timeNow,
         type: 'text'
       };
-      appendMessageToConv(convId, userMsg);
-      setTimeout(() => {
-        const latest = conversations.find(c => c.id === convId);
-        const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...c.messages, userMsg, aiReply] } : c);
-        set(ref(db, 'conversations'), updated);
-      }, 300);
+      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...(c.messages || []), userMsg, aiReply] } : c);
+      setConversations(updated);
+      set(ref(db, 'conversations'), updated);
       setAiStep('deposit_details');
     } else if (option === 'withdrawal') {
       const userMsg = { id: `c_${Date.now()}`, sender: 'visitor', senderName: 'Mohsin', text: 'I have a Withdrawal query', timestamp: timeNow, type: 'text' };
@@ -261,7 +242,8 @@ export default function App() {
         timestamp: timeNow,
         type: 'text'
       };
-      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...c.messages, userMsg, aiReply] } : c);
+      const updated = conversations.map(c => c.id === convId ? { ...c, messages: [...(c.messages || []), userMsg, aiReply] } : c);
+      setConversations(updated);
       set(ref(db, 'conversations'), updated);
       setAiStep('withdrawal_details');
     } else if (option === 'agent') {
@@ -269,7 +251,7 @@ export default function App() {
     }
   };
 
-  // Customer Message Submit Handler (AI + Ticket + Live Agent Routing)
+  // Customer Message Submit Handler
   const handleSendCustomerMessage = (e) => {
     e.preventDefault();
     if (!customerInput.trim()) return;
@@ -279,7 +261,6 @@ export default function App() {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setCustomerInput('');
 
-    // Check if user explicitly asks for human agent at any stage
     const wantsAgent = /agent|human|support|representative|person|talk to/i.test(text);
     if (wantsAgent && aiStep !== 'agent_connected') {
       transferToLeastBusyAgent(convId, text);
@@ -289,7 +270,6 @@ export default function App() {
     const userMsg = { id: `cust_${Date.now()}`, sender: 'visitor', senderName: 'Mohsin', text, timestamp: timeNow, type: 'text' };
 
     if (aiStep === 'deposit_details') {
-      // Auto-create Deposit Ticket & notify Agent Console
       const ticketId = `DEP-${Math.floor(100000 + Math.random() * 900000)}`;
       const newTicket = {
         id: ticketId,
@@ -318,14 +298,14 @@ export default function App() {
               ...c,
               ticketBadge: `🎫 ${ticketId} (Deposit)`,
               unread: (c.unread || 0) + 1,
-              messages: [...c.messages, userMsg, aiConfirm]
+              messages: [...(c.messages || []), userMsg, aiConfirm]
             }
           : c
       );
+      setConversations(updated);
       set(ref(db, 'conversations'), updated);
       setAiStep('menu');
     } else if (aiStep === 'withdrawal_details') {
-      // Forward Withdrawal details directly to Agent Console & transfer
       const availableAgents = registeredUsers.filter(u => u.status === 'Accepting chats');
       const chosenAgent = availableAgents.length > 0
         ? [...availableAgents].sort((a, b) => (a.activeChats || 0) - (b.activeChats || 0))[0]
@@ -347,15 +327,15 @@ export default function App() {
               ticketBadge: `💸 Withdrawal Alert`,
               assignedAgent: chosenAgent.name,
               unread: (c.unread || 0) + 1,
-              messages: [...c.messages, userMsg, aiForward]
+              messages: [...(c.messages || []), userMsg, aiForward]
             }
           : c
       );
+      setConversations(updated);
       set(ref(db, 'conversations'), updated);
       setAssignedHumanAgent(chosenAgent.name);
       setAiStep('agent_connected');
     } else if (aiStep === 'menu') {
-      // Initial AI detection
       if (/deposit/i.test(text)) {
         handleAiOptionClick('deposit');
       } else if (/withdraw/i.test(text)) {
@@ -370,17 +350,18 @@ export default function App() {
           type: 'text'
         };
         const updated = conversations.map(c =>
-          c.id === convId ? { ...c, messages: [...c.messages, userMsg, aiPrompt] } : c
+          c.id === convId ? { ...c, messages: [...(c.messages || []), userMsg, aiPrompt] } : c
         );
+        setConversations(updated);
         set(ref(db, 'conversations'), updated);
       }
     } else {
-      // Direct Live Chat with Human Agent
       const updated = conversations.map(c =>
         c.id === convId
-          ? { ...c, unread: (c.unread || 0) + 1, messages: [...c.messages, userMsg] }
+          ? { ...c, unread: (c.unread || 0) + 1, messages: [...(c.messages || []), userMsg] }
           : c
       );
+      setConversations(updated);
       set(ref(db, 'conversations'), updated);
     }
   };
@@ -402,10 +383,11 @@ export default function App() {
 
     const updatedConversations = conversations.map(conv =>
       conv.id === targetId
-        ? { ...conv, assignedAgent: currentAgent.name, messages: [...conv.messages, newMsg], unread: 0 }
+        ? { ...conv, assignedAgent: currentAgent.name, messages: [...(conv.messages || []), newMsg], unread: 0 }
         : conv
     );
 
+    setConversations(updatedConversations);
     set(ref(db, 'conversations'), updatedConversations);
     setAgentInput('');
     setShowCannedMenu(false);
@@ -424,6 +406,7 @@ export default function App() {
     const updated = conversations.map(c =>
       c.id === convId ? { ...c, assignedAgent: 'Sofia (AI)', ticketBadge: null, messages: resetMsg } : c
     );
+    setConversations(updated);
     set(ref(db, 'conversations'), updated);
     setAiStep('menu');
     setAssignedHumanAgent(null);
@@ -479,39 +462,41 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
-      {/* TOP NAVBAR */}
-      <nav className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-2.5 flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center space-x-3">
-          <div className="bg-purple-600 p-2 rounded-xl text-white font-bold text-lg">📍</div>
-          <div>
-            <span className="text-xl font-bold text-white">AuraChat</span>
-            <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full ml-2 border border-purple-500/30 font-semibold">Enterprise Pro</span>
+      {/* TOP NAVBAR (Hidden on Customer Direct Link ?chat=true) */}
+      {!isCustomerLink && (
+        <nav className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-2.5 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center space-x-3">
+            <div className="bg-purple-600 p-2 rounded-xl text-white font-bold text-lg">📍</div>
+            <div>
+              <span className="text-xl font-bold text-white">AuraChat</span>
+              <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full ml-2 border border-purple-500/30 font-semibold">Enterprise Pro</span>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center space-x-3 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
-          <button
-            onClick={() => setIsAcceptingChats(!isAcceptingChats)}
-            className={`px-3 py-1 rounded-lg font-semibold flex items-center space-x-2 transition ${isAcceptingChats ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}
-          >
-            <span className={`w-2 h-2 rounded-full ${isAcceptingChats ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
-            <span>{isAcceptingChats ? 'Accepting Chats' : 'Not Accepting'}</span>
-          </button>
-          <span className="text-slate-400 border-l border-slate-800 pl-3">👑 {currentAgent.name}</span>
-          <button onClick={() => setIsLoggedIn(false)} className="text-rose-400 hover:underline pl-2">Logout</button>
-        </div>
+          <div className="flex items-center space-x-3 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
+            <button
+              onClick={() => setIsAcceptingChats(!isAcceptingChats)}
+              className={`px-3 py-1 rounded-lg font-semibold flex items-center space-x-2 transition ${isAcceptingChats ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}
+            >
+              <span className={`w-2 h-2 rounded-full ${isAcceptingChats ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+              <span>{isAcceptingChats ? 'Accepting Chats' : 'Not Accepting'}</span>
+            </button>
+            <span className="text-slate-400 border-l border-slate-800 pl-3">👑 {currentAgent.name}</span>
+            <button onClick={() => setIsLoggedIn(false)} className="text-rose-400 hover:underline pl-2">Logout</button>
+          </div>
 
-        <div className="flex items-center space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-          <button onClick={() => setActiveNavTab('chats')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'chats' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>💬 Agent Chats</button>
-          <button onClick={() => setActiveNavTab('customer-view')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'customer-view' ? 'bg-emerald-600 text-white' : 'text-emerald-400 border border-emerald-500/30'}`}>📱 Customer Phone View</button>
-          <button onClick={() => setActiveNavTab('tickets')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'tickets' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>🎫 AI Tickets ({ticketsList.length})</button>
-          <button onClick={() => setActiveNavTab('team')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'team' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>👥 Team</button>
-        </div>
-      </nav>
+          <div className="flex items-center space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+            <button onClick={() => setActiveNavTab('chats')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'chats' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>💬 Agent Chats</button>
+            <button onClick={() => setActiveNavTab('customer-view')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'customer-view' ? 'bg-emerald-600 text-white' : 'text-emerald-400 border border-emerald-500/30'}`}>📱 Customer Phone View</button>
+            <button onClick={() => setActiveNavTab('tickets')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'tickets' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>🎫 AI Tickets ({ticketsList.length})</button>
+            <button onClick={() => setActiveNavTab('team')} className={`px-3 py-1.5 rounded-lg font-medium transition ${activeNavTab === 'team' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>👥 Team</button>
+          </div>
+        </nav>
+      )}
 
       {/* VIEW: CUSTOMER PHONE WIDGET WITH SOFIA AI */}
       {activeNavTab === 'customer-view' && (
-        <div className="max-w-md mx-auto my-6 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[760px] w-full">
+        <div className="max-w-md mx-auto my-4 sm:my-6 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[88vh] sm:h-[760px] w-full">
           <div className="bg-slate-950 p-4 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center space-x-2.5">
               <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center font-bold text-white text-xs">
@@ -528,7 +513,9 @@ export default function App() {
             </div>
             <div className="flex items-center space-x-2">
               <button onClick={resetCustomerAiChat} className="text-[11px] bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-xl text-amber-300">↻ Reset AI</button>
-              <button onClick={() => setActiveNavTab('chats')} className="text-[11px] bg-purple-600/20 text-purple-300 border border-purple-500/30 px-2.5 py-1.5 rounded-xl">Agent View ➔</button>
+              {!isCustomerLink && (
+                <button onClick={() => setActiveNavTab('chats')} className="text-[11px] bg-purple-600/20 text-purple-300 border border-purple-500/30 px-2.5 py-1.5 rounded-xl">Agent View ➔</button>
+              )}
             </div>
           </div>
 
@@ -554,7 +541,7 @@ export default function App() {
                   <p className="text-slate-300">If your deposit is rejected, please wait 10 minutes before resubmitting. Our AI assistant Sofia can create a priority ticket or connect you to a free agent.</p>
                 </div>
 
-                {conversations.find(c => c.id === '773726619')?.messages.map((m, idx) => (
+                {conversations.find(c => c.id === '773726619')?.messages?.map((m, idx) => (
                   <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[82%] p-3 rounded-2xl text-xs ${
                       m.sender === 'visitor'
