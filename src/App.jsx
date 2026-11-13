@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
 
-// Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDu6kGB97h9LcyzqkJCS6dX9jvesZXcg",
   authDomain: "aurachat-live.firebaseapp.com",
@@ -54,7 +53,7 @@ const INITIAL_CONVERSATIONS = [
         id: 'welcome_ai',
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: 'Welcome to AuraChat Support! I am Sofia, your AI assistant. How can I help you today? Please choose an option below or type your query:',
+        text: 'Welcome to AuraChat 24/7 Support! I am Sofia. How can I help you today? Please choose an option below or type your query:',
         timestamp: 'Just now',
         type: 'text'
       }
@@ -70,8 +69,7 @@ const INITIAL_TEAM = [
 const INITIAL_CANNED = [
   { code: '#1', title: 'Check Details', text: 'Sir, we are checking your details. Please wait a moment while we update you.' },
   { code: '#2', title: 'Payment Screenshot', text: 'Kindly share the screenshot of your payment receipt so we can verify.' },
-  { code: '#3', title: 'Deposit Verified', text: 'Your deposit ticket has been verified and credited to your account!' },
-  { code: '#4', title: 'Greeting & Help', text: 'Hello! Welcome to AuraSupport. How can we assist you today?' }
+  { code: '#3', title: 'Deposit Verified', text: 'Your deposit ticket has been verified and credited to your account!' }
 ];
 
 export default function App() {
@@ -97,12 +95,14 @@ export default function App() {
   const [isAcceptingChats, setIsAcceptingChats] = useState(true);
   const [showCannedMenu, setShowCannedMenu] = useState(false);
 
-  // Floating 24/7 Customer Widget Toggle State
+  // Floating Widget State
   const [isOpenChatWidget, setIsOpenChatWidget] = useState(isCustomerLink);
   const [customerActiveTab, setCustomerActiveTab] = useState('messages');
   const [customerInput, setCustomerInput] = useState('');
   const [aiStep, setAiStep] = useState('menu');
   const [assignedHumanAgent, setAssignedHumanAgent] = useState(null);
+
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const chatsRef = ref(db, 'conversations');
@@ -268,7 +268,7 @@ export default function App() {
         id: `ai_${Date.now() + 1}`,
         sender: 'ai',
         senderName: 'Sofia (AI Assistant)',
-        text: `✅ Deposit Ticket #${ticketId} created successfully! Details: "${text}". Would you like me to connect you to a live agent?`,
+        text: `✅ Deposit Ticket #${ticketId} created successfully! Details logged. Connecting you to an agent now...`,
         timestamp: timeNow,
         type: 'text'
       };
@@ -276,7 +276,7 @@ export default function App() {
       const updated = conversations.map(c => c.id === convId ? { ...c, ticketBadge: `🎫 ${ticketId} (Deposit)`, messages: [...(c.messages || []), userMsg, aiConfirm] } : c);
       setConversations(updated);
       set(ref(db, 'conversations'), updated);
-      setAiStep('menu');
+      transferToLeastBusyAgent(convId);
     } else if (aiStep === 'withdrawal_details') {
       transferToLeastBusyAgent(convId, text);
     } else {
@@ -303,13 +303,21 @@ export default function App() {
     setShowCannedMenu(false);
   };
 
+  const handleFileUploadFromPC = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fileUrl = URL.createObjectURL(file);
+    const isVideo = file.type.includes('video');
+    handleSendAgentMessage(selectedConvId, fileUrl, isVideo ? 'video' : 'image');
+  };
+
   const resetCustomerAiChat = () => {
     const convId = '773726619';
     const resetMsg = [{
       id: `welcome_${Date.now()}`,
       sender: 'ai',
       senderName: 'Sofia (AI Assistant)',
-      text: 'Welcome to AuraChat Support! I am Sofia, your AI assistant. How can I help you today? Please choose an option below:',
+      text: 'Welcome to AuraChat 24/7 Support! I am Sofia. How can I help you today? Please choose an option below:',
       timestamp: 'Just now',
       type: 'text'
     }];
@@ -320,7 +328,7 @@ export default function App() {
     setAssignedHumanAgent(null);
   };
 
-  // If opened via ?chat=true, show ONLY clean Customer Chat Widget
+  // Direct Customer Link view (?chat=true)
   if (isCustomerLink) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-2 sm:p-4">
@@ -339,65 +347,42 @@ export default function App() {
           </div>
 
           <div className="flex-1 overflow-y-auto bg-slate-950/50 p-4 space-y-3">
-            {customerActiveTab === 'home' ? (
-              <div className="space-y-4">
-                <div className="bg-gradient-to-r from-purple-900/40 to-slate-900 p-5 rounded-2xl border border-purple-500/20">
-                  <h2 className="text-lg font-bold text-white">Hi Dear,</h2>
-                  <h3 className="text-xl font-bold text-purple-400 mb-3">How can we help?</h3>
-                  <div className="space-y-2 text-xs">
-                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between"><span>Alternate Site 1</span><span>↗</span></div>
-                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between"><span>Alternate Site 2</span><span>↗</span></div>
-                  </div>
-                </div>
-                <div onClick={() => setCustomerActiveTab('messages')} className="bg-purple-600 text-white p-4 rounded-2xl font-bold text-sm flex justify-between items-center cursor-pointer shadow-lg">
-                  <span>Send us a message</span><span>💬</span>
-                </div>
+            <div className="space-y-3">
+              <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 text-xs space-y-1">
+                <div className="font-bold text-amber-400">Notice for all Users :</div>
+                <p className="text-slate-300">For deposit, withdrawal or account issues, choose an option below or talk directly to our live support team.</p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 text-xs space-y-1">
-                  <div className="font-bold text-amber-400">Notice for all Users :</div>
-                  <p className="text-slate-300">If your deposit is rejected, wait 10 minutes or use Sofia AI to create a priority ticket / connect with an agent.</p>
+
+              {conversations.find(c => c.id === '773726619')?.messages?.map((m, idx) => (
+                <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[82%] p-3 rounded-2xl text-xs ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : m.type === 'system' ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-200' : 'bg-slate-800 text-slate-200'}`}>
+                    <div className="font-bold text-[9px] opacity-75 mb-0.5">{m.sender === 'visitor' ? 'You' : (m.senderName || 'Sofia (AI)')}</div>
+                    <div>{m.text}</div>
+                    <div className="text-[9px] opacity-60 text-right mt-1">{m.timestamp}</div>
+                  </div>
                 </div>
+              ))}
 
-                {conversations.find(c => c.id === '773726619')?.messages?.map((m, idx) => (
-                  <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[82%] p-3 rounded-2xl text-xs ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : m.type === 'system' ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-200' : 'bg-slate-800 text-slate-200'}`}>
-                      <div className="font-bold text-[9px] opacity-75 mb-0.5">{m.sender === 'visitor' ? 'You' : (m.senderName || 'Sofia (AI)')}</div>
-                      <div>{m.text}</div>
-                      <div className="text-[9px] opacity-60 text-right mt-1">{m.timestamp}</div>
-                    </div>
-                  </div>
-                ))}
-
-                {aiStep !== 'agent_connected' && (
-                  <div className="pt-2 flex flex-wrap gap-2">
-                    <button onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">💳 Deposit Issue (Ticket)</button>
-                    <button onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">💸 Withdrawal Issue</button>
-                    <button onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1.5 rounded-full font-semibold">👨‍💻 Talk to Live Agent</button>
-                  </div>
-                )}
-              </div>
-            )}
+              {aiStep !== 'agent_connected' && (
+                <div className="pt-2 flex flex-wrap gap-2">
+                  <button onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">💳 Deposit Issue (Ticket)</button>
+                  <button onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-full transition">💸 Withdrawal Issue</button>
+                  <button onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1.5 rounded-full font-semibold">👨‍💻 Talk to Live Agent</button>
+                </div>
+              )}
+            </div>
           </div>
 
-          {customerActiveTab === 'messages' && (
-            <form onSubmit={handleSendCustomerMessage} className="p-3 bg-slate-900 border-t border-slate-800 flex items-center space-x-2">
-              <input type="text" value={customerInput} onChange={(e) => setCustomerInput(e.target.value)} placeholder="Type your message in English..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none" />
-              <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold">Send</button>
-            </form>
-          )}
-
-          <div className="grid grid-cols-2 border-t border-slate-800 bg-slate-950 p-2 text-center text-xs">
-            <button onClick={() => setCustomerActiveTab('home')} className={`py-2 rounded-xl font-medium ${customerActiveTab === 'home' ? 'bg-purple-600/20 text-purple-300' : 'text-slate-400'}`}>🏠 Home</button>
-            <button onClick={() => setCustomerActiveTab('messages')} className={`py-2 rounded-xl font-medium ${customerActiveTab === 'messages' ? 'bg-purple-600/20 text-purple-300' : 'text-slate-400'}`}>💬 Messages</button>
-          </div>
+          <form onSubmit={handleSendCustomerMessage} className="p-3 bg-slate-900 border-t border-slate-800 flex items-center space-x-2">
+            <input type="text" value={customerInput} onChange={(e) => setCustomerInput(e.target.value)} placeholder="Type your message in English..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none" />
+            <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold">Send</button>
+          </form>
         </div>
       </div>
     );
   }
 
-  // If Agent is not logged in, show Login Screen with 24/7 Floating Chat Widget button
+  // Login Screen with Floating 24/7 Chat Widget
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative">
@@ -434,7 +419,7 @@ export default function App() {
           </form>
         </div>
 
-        {/* BOTTOM-RIGHT FLOATING 24/7 CHAT BUTTON FOR VISITORS */}
+        {/* BOTTOM-RIGHT FLOATING 24/7 CHAT BUTTON */}
         <div className="fixed bottom-6 right-6 z-50">
           {!isOpenChatWidget ? (
             <button 
@@ -457,17 +442,23 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-950/40 text-xs">
                 {conversations.find(c => c.id === '773726619')?.messages?.map((m, idx) => (
                   <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] p-2.5 rounded-xl ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-200'}`}>
+                    <div className={`max-w-[85%] p-2.5 rounded-xl ${m.sender === 'visitor' ? 'bg-purple-600 text-white' : m.type === 'system' ? 'bg-emerald-500/20 text-emerald-200' : 'bg-slate-800 text-slate-200'}`}>
                       <div>{m.text}</div>
                     </div>
                   </div>
                 ))}
+
+                <div className="pt-2 flex flex-wrap gap-1">
+                  <button onClick={() => handleAiOptionClick('deposit')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full">💳 Deposit Issue</button>
+                  <button onClick={() => handleAiOptionClick('withdrawal')} className="bg-slate-800 hover:bg-purple-600 text-white text-[10px] px-2.5 py-1 rounded-full">💸 Withdrawal</button>
+                  <button onClick={() => handleAiOptionClick('agent')} className="bg-emerald-600/30 text-emerald-300 text-[10px] px-2.5 py-1 rounded-full font-semibold">👨‍💻 Live Agent</button>
+                </div>
               </div>
 
-              <div className="p-2 border-t border-slate-800 bg-slate-950 flex space-x-1">
+              <form onSubmit={handleSendCustomerMessage} className="p-2 border-t border-slate-800 bg-slate-950 flex space-x-1">
                 <input type="text" value={customerInput} onChange={(e) => setCustomerInput(e.target.value)} placeholder="Type message..." className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white" />
-                <button onClick={handleSendCustomerMessage} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">Send</button>
-              </div>
+                <button type="submit" className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">Send</button>
+              </form>
             </div>
           )}
         </div>
@@ -475,7 +466,7 @@ export default function App() {
     );
   }
 
-  // AGENT CONSOLE (When Agent is Logged In)
+  // AGENT CONSOLE
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
       <nav className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-2.5 flex items-center justify-between flex-wrap gap-3">
@@ -537,9 +528,23 @@ export default function App() {
             <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-950/30">
               {selectedConversation.messages?.map((m, idx) => (
                 <div key={idx} className={`flex ${m.sender === 'visitor' ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${m.sender === 'visitor' ? 'bg-slate-800 text-slate-200' : m.sender === 'ai' ? 'bg-cyan-900/50 text-cyan-100' : 'bg-purple-600 text-white'}`}>
+                  <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${
+                    m.sender === 'visitor'
+                      ? 'bg-slate-800 text-slate-200'
+                      : m.sender === 'ai'
+                      ? 'bg-cyan-900/50 text-cyan-100'
+                      : 'bg-purple-600 text-white'
+                  }`}>
                     <div className="text-[10px] opacity-80 mb-0.5 font-semibold">{m.senderName || (m.sender === 'visitor' ? selectedConversation.visitorName : currentAgent.name)}</div>
-                    <span>{m.text}</span>
+                    
+                    {m.type === 'image' ? (
+                      <img src={m.text} alt="Media" className="max-h-48 rounded-lg mt-1" />
+                    ) : m.type === 'video' ? (
+                      <video src={m.text} controls className="max-h-48 rounded-lg mt-1" />
+                    ) : (
+                      <span>{m.text}</span>
+                    )}
+
                     <div className="text-[10px] text-right mt-1 opacity-70">{m.timestamp}</div>
                   </div>
                 </div>
@@ -547,6 +552,8 @@ export default function App() {
             </div>
 
             <form onSubmit={(e) => { e.preventDefault(); handleSendAgentMessage(selectedConvId); }} className="p-3 border-t border-slate-800 bg-slate-950 flex items-center space-x-2">
+              <input type="file" ref={fileInputRef} onChange={handleFileUploadFromPC} className="hidden" accept="image/*,video/*" />
+              <button type="button" onClick={() => fileInputRef.current.click()} className="text-slate-400 hover:text-white p-2.5 bg-slate-900 rounded-xl border border-slate-800">📁</button>
               <input type="text" value={agentInput} onChange={(e) => setAgentInput(e.target.value)} placeholder="Reply as Live Agent..." className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none" />
               <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">Send ➔</button>
             </form>
